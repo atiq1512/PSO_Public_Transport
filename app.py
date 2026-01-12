@@ -85,15 +85,6 @@ y_max = np.dot(X_max_scaled, weights) + bias
 y_max = max(0, y_max.item())
 
 # =====================================================
-# Prediction Results
-# =====================================================
-st.subheader("📊 Prediction Result")
-
-col1, col2 = st.columns(2)
-col1.metric("Estimated Passengers", f"{y_pred:,.2f}")
-col2.metric("Max Predicted Passengers (Demo)", f"{y_max:,.2f}")
-
-# =====================================================
 # Best PSO Optimized Parameters (Global Best)
 # =====================================================
 st.subheader("🏆 Best PSO Optimized Parameters (Global Best)")
