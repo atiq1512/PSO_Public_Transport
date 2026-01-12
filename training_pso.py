@@ -1,9 +1,8 @@
-#training_pso.py
+# training_pso.py
 import numpy as np
 import pandas as pd
 import joblib
 import pyswarms as ps
-
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
@@ -11,106 +10,85 @@ from sklearn.metrics import mean_squared_error
 # ===============================
 # 1. Load dataset
 # ===============================
-data = pd.read_csv("delhi_metro_updated2.0.csv")
+csv_filename = 'delhi_metro_updated2.0.csv'  # make sure this CSV is in Colab folder
+data = pd.read_csv(csv_filename)
+data = data.head(5000)  # optional: limit rows
 
-data = data.head(5000)
-data.replace([np.inf, -np.inf], np.nan, inplace=True)
-data.dropna(inplace=True)
-
-print("Dataset shape:", data.shape)
-
-# ===============================
-# 2. Select features, target, objectives
-# ===============================
-X = data[['Distance_km', 'Fare', 'Cost_per_passenger']]
-y = data['Passengers']
-
-distance = data['Distance_km'].values
-fare = data['Fare'].values
-
-feature_names = X.columns.tolist()
+# Features and target
+feature_names = ['Distance_km', 'Fare', 'Cost_per_passenger']
+X = data[feature_names].values
+y = data['Passengers'].values.reshape(-1, 1)
 
 # ===============================
-# 3. Train-test split
-# ===============================
-X_train, X_test, y_train, y_test, dist_train, dist_test, fare_train, fare_test = train_test_split(
-    X, y, distance, fare, test_size=0.2, random_state=42
-)
-
-# ===============================
-# 4. Feature scaling
+# 2. Scale features
 # ===============================
 scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+X_scaled = scaler.fit_transform(X)
 
-# ===============================
-# 5. Multi-objective fitness function
-# ===============================
-def fitness_function(weights):
-    if weights.size == 0:
-        return np.array([np.inf])
-
-    w = weights[:, :-1]
-    b = weights[:, -1].reshape(1, -1)
-
-    y_pred = X_train_scaled @ w.T + b
-
-    mse = np.mean((y_train.values.reshape(-1, 1) - y_pred) ** 2, axis=0)
-
-    distance_penalty = np.mean(dist_train)
-    fare_penalty = np.mean(fare_train)
-
-    w1, w2, w3 = 0.6, 0.2, 0.2
-
-    fitness = w1 * mse + w2 * distance_penalty + w3 * fare_penalty
-    return fitness
-
-# ===============================
-# 6. PSO Optimization
-# ===============================
-dimensions = X_train_scaled.shape[1] + 1
-
-options = {"c1": 1.5, "c2": 1.5, "w": 0.7}
-bounds = (np.array([-10]*dimensions), np.array([10]*dimensions))
-
-optimizer = ps.single.GlobalBestPSO(
-    n_particles=20,
-    dimensions=dimensions,
-    options=options,
-    bounds=bounds
+# Split into train/test
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42
 )
 
-best_cost, best_position = optimizer.optimize(fitness_function, iters=50)
+# ===============================
+# 3. Define PSO fitness function
+# ===============================
+def fitness_function(params):
+    n_particles = params.shape[0]
+    mse_vals = np.zeros(n_particles)
+
+    for i in range(n_particles):
+        weights = params[i, :-1].reshape(-1, 1)  # w1, w2, w3
+        bias = params[i, -1]
+        y_pred = X_train @ weights + bias
+        mse_vals[i] = mean_squared_error(y_train, y_pred)
+
+    return mse_vals
 
 # ===============================
-# 7. Extract best parameters
+# 4. Run PSO
 # ===============================
-best_weights = best_position[:-1]
-best_bias = best_position[-1]
+options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+bounds = (np.array([0, 0, 0, -100]), np.array([5, 5, 5, 100]))  # weights + bias
+
+optimizer = ps.single.GlobalBestPSO(
+    n_particles=30, dimensions=4, options=options, bounds=bounds
+)
+
+best_cost, best_pos = optimizer.optimize(fitness_function, iters=100)
 
 # ===============================
-# 8. Evaluate model
+# 5. Extract weights and bias
 # ===============================
-y_test_pred = X_test_scaled @ best_weights + best_bias
-test_mse = mean_squared_error(y_test, y_test_pred)
-
-print("\n✅ Training Complete")
-print("Test MSE:", test_mse)
+best_weights = best_pos[:-1].reshape(-1, 1)
+best_bias = best_pos[-1]
 
 # ===============================
-# 9. Save model and scaler
+# 6. Evaluate on test set
 # ===============================
-pso_model = {
-    "model_type": "Multi-Objective PSO Optimized Linear Regression",
-    "weights": best_weights,
-    "bias": best_bias,
-    "feature_names": feature_names
-}
+y_test_pred = X_test @ best_weights + best_bias
+y_test_pred = np.clip(y_test_pred, 0, None)  # prevent negative predictions
+mse_test = mean_squared_error(y_test, y_test_pred)
 
-joblib.dump(pso_model, "pso_model.pkl")
+print("Best Weights:", best_weights.flatten())
+print("Best Bias:", best_bias)
+print("Test MSE:", mse_test)
+
+# ===============================
+# 7. Save model and scaler
+# ===============================
+joblib.dump({"model_type": "Multi-Objective PSO Optimized Linear Regression", "weights": best_weights, "bias": best_bias, "feature_names": feature_names}, "pso_model.pkl")
 joblib.dump(scaler, "scaler.pkl")
+print("Model and scaler saved successfully!")
 
-print("\n✅ Saved files:")
-print("pso_model.pkl")
-print("scaler.pkl")
+# ===============================
+# 8. Optional: Demo prediction
+# ===============================
+X_demo = np.array([[5.0, 20.0, 15.0]])  # Distance, Fare, Cost per Passenger
+X_demo_scaled = scaler.transform(X_demo)
+y_demo = X_demo_scaled @ best_weights + best_bias
+y_demo = max(0, y_demo.item())
+print("Demo Estimated Passengers:", y_demo)
+
+y_max_demo = max(0, y_demo * 1.1)
+print("Demo Max Passengers (+10% margin):", y_max_demo)
