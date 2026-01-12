@@ -50,13 +50,13 @@ st.markdown(
 st.sidebar.header("🔢 Input Parameters")
 
 distance = st.sidebar.number_input(
-    "Distance (km)", min_value=0.0, max_value=100.0, value=10.0
+    "Distance (km)", min_value=0.0, max_value=100.0, value=12.94
 )
 fare = st.sidebar.number_input(
-    "Fare (₹)", min_value=0.0, max_value=200.0, value=30.0
+    "Fare (₹)", min_value=0.0, max_value=200.0, value=77.99
 )
 cost = st.sidebar.number_input(
-    "Cost per Passenger (₹)", min_value=0.0, max_value=100.0, value=15.0
+    "Cost per Passenger (₹)", min_value=0.0, max_value=100.0, value=18.27
 )
 
 X_input = pd.DataFrame([{
