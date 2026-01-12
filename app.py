@@ -38,7 +38,7 @@ feature_names = model["feature_names"]
 # ===============================
 # Load dataset for preview
 # ===============================
-data = pd.read_csv("delhi_metro_updated.csv")
+data = pd.read_csv("delhi_metro_updated2.0.csv")
 data = data[['Distance_km', 'Fare', 'Cost_per_passenger', 'Passengers']].dropna()
 
 # ===============================
